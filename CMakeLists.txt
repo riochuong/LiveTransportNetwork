@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.17 FATAL_ERROR)
 
 project(network-monitor)
 
+# this is an important line to make sure CMAKE can see conan downloaded
+# package properly
 include(${CMAKE_BINARY_DIR}/conan_toolchain.cmake)
 
 find_package(ZLIB REQUIRED)
