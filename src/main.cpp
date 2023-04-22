@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <cassert>
+#include <memory>
 
 #include <boost/asio.hpp>
 #include <boost/system/error_code.hpp>
@@ -24,9 +25,6 @@ void Log(boost_error_code ec) {
              << std::endl;
 }
 
-void OnConnect(boost_error_code ec) {
-   Log(ec);
-}
 
 int main (void) {
    boost::system::error_code ec {};
@@ -35,34 +33,50 @@ int main (void) {
    // make strand to serialize execution of handlers 
    tcp::socket socket {ioc};
    tcp::resolver resolver {ioc};
-   boost::asio::ip::basic_resolver_results results {resolver.resolve("ltnm.learncppthroughprojects.com", "80", ec)};
-   socket.connect(*results.begin());
-   stream<tcp_stream> websocket(std::move(socket));
-   // communicate via text format 
-   websocket.text(true);
-   websocket.handshake("ltnm.learncppthroughprojects.com", "/echo", ec);
-   Log(ec);
-   if (ec){
-      return -1;
-   }
-   ec.clear();
-   std::string msg_orig = "Test 123";
-   size_t sent_bytes = websocket.write(net::buffer(msg_orig));
-   std::cout << "Sent bytes: " << sent_bytes <<"\n";
+   std::shared_ptr<stream<tcp_stream>> websocket_ptr = nullptr;
    std::string echo_msg;
-   boost::asio::dynamic_string_buffer buffer{echo_msg};
-   try{
-      int num_bytes = websocket.read(buffer, ec);
-      if (ec) {
-         std::cerr << "Error reading data: " << ec.message() <<"\n";
-         return -3;
-      }
-      std::cout << "Read bytes: " << num_bytes << "\n";
-      assert(num_bytes == msg_orig.size());
-      std::cout << "Echo message: " << echo_msg << std::endl;
-      return 0;
-   } catch (boost::system::system_error e){
-      std::cerr << "Error: " << e.what() << "\n";
-   };
-   return -1;
+   boost::asio::dynamic_string_buffer echo_buffer{echo_msg};
+   
+   boost::asio::ip::basic_resolver_results results {resolver.resolve("ltnm.learncppthroughprojects.com", "80", ec)};
+   socket.async_connect(*results.begin(), [&websocket_ptr, &socket, &echo_buffer, &echo_msg](const boost_error_code &ec){
+        if (ec) {
+           Log(ec);
+           return;
+        }
+        std::cout << "Successfully Connect  \n";
+        websocket_ptr = std::make_shared<stream<tcp_stream>>(std::move(socket));
+        assert(websocket_ptr);
+        websocket_ptr->text(true);
+
+        // Handshake and trigger write 
+        websocket_ptr->async_handshake("ltnm.learncppthroughprojects.com", "/echo", [&websocket_ptr, &echo_buffer, &echo_msg](const boost_error_code &ec){
+            if (ec){
+               Log(ec);
+               return;
+            }
+            std::cout << "Successfully Established Websocket Handshake  \n";
+            std::string msg_orig = "Test 123 ---- today is a great day !! Space X Starship is succesfully lifted off the base";
+            websocket_ptr->async_write(net::buffer(msg_orig), [&websocket_ptr, &echo_buffer, &echo_msg](const boost_error_code& ec, size_t bytes_transferred){
+                  if (ec){
+                     Log(ec);
+                     return;
+                  }
+                  assert(websocket_ptr);
+                  std::cout << "Sent bytes: " << bytes_transferred <<"\n";
+                  // now do async read
+                  websocket_ptr->async_read(echo_buffer, [&websocket_ptr, &echo_buffer, bytes_transferred, &echo_msg](const boost_error_code& ec, size_t bytes_written){
+                        if (ec){
+                           Log(ec);
+                           return;
+                        }
+                        std::cout << "Bytes Written :" << bytes_written << "\n";
+                        assert(websocket_ptr);
+                        assert(bytes_transferred == bytes_written);
+                        std::cout << "Received message: " << echo_msg << "\n";
+                     });
+            });
+        });
+   });
+   ioc.run();
+   return 0;        
 }
