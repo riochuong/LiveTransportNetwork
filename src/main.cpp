@@ -10,7 +10,7 @@
 #include <boost/system/error_code.hpp>
 #include <boost/beast.hpp>
 
-//#include <boost/beast/ssl.hpp>
+#include "logging.h"
 
 
 using tcp = boost::asio::ip::tcp;
