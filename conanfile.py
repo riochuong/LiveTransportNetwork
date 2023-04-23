@@ -14,4 +14,5 @@ class ConanPackage(ConanFile):
     
     def requirements(self):
         self.requires("boost/1.81.0")
+        self.requires("spdlog/1.11.0")
 
