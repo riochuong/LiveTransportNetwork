@@ -1,83 +1,79 @@
 #include <iostream>
-#include <thread>
-#include <iomanip>
-#include <vector>
 #include <string>
-#include <cassert>
-#include <memory>
-
 #include <boost/asio.hpp>
-#include <boost/system/error_code.hpp>
 #include <boost/beast.hpp>
 
+
+#include "websocket-client.h"
 #include "logging.h"
 
-
+namespace net = boost::asio;  
 using tcp = boost::asio::ip::tcp;
-using ip_address = boost::asio::ip::address;
-using boost_error_code = boost::system::error_code;
-namespace net = boost::asio;
-using namespace boost::beast;
-using namespace boost::beast::websocket;
-
-void Log(boost_error_code ec) {
-   std::cerr << (ec ? "Error : " : "OK")
-             << (ec ? ec.message(): "")
-             << std::endl;
-}
+namespace beast = boost::beast;
+using NetworkMonitor::WebSocketClient;
 
 
-int main (void) {
-   boost::system::error_code ec {};
-   boost::asio::io_context ioc{};
 
-   // make strand to serialize execution of handlers 
-   tcp::socket socket {ioc};
-   tcp::resolver resolver {ioc};
-   std::shared_ptr<stream<tcp_stream>> websocket_ptr = nullptr;
-   std::string echo_msg;
-   boost::asio::dynamic_string_buffer echo_buffer{echo_msg};
-   
-   boost::asio::ip::basic_resolver_results results {resolver.resolve("ltnm.learncppthroughprojects.com", "80", ec)};
-   socket.async_connect(*results.begin(), [&websocket_ptr, &socket, &echo_buffer, &echo_msg](const boost_error_code &ec){
-        if (ec) {
-           Log(ec);
-           return;
+int main(void) {
+    const std::string url {"ltnm.learncppthroughprojects.com"};
+    const std::string endpoint {"/echo"};
+    const std::string port {"80"};
+    const std::string message {"Hello WebSocket"};
+    net::io_context ioc {};
+
+    // need to created shared_pointer here to enable share_from_this
+    auto client_ptr = std::make_shared<WebSocketClient>(url, endpoint, port, ioc);
+
+    // We use these flags to check that the connection, send, receive functions
+    // work as expected.
+    bool connected {false};
+    bool messageSent {false};
+    bool messageReceived {false};
+    bool messageMatches {false};
+    bool disconnected {false};
+
+    // Our own callbacks
+    auto onSend {[&messageSent](auto ec) {
+        messageSent = !ec;
+    }};
+    auto onConnect {[&client_ptr, &connected, &onSend, &message](auto ec) {
+        connected = !ec;
+        if (!ec) {
+            client_ptr->Send(message, onSend);
         }
-        std::cout << "Successfully Connect  \n";
-        websocket_ptr = std::make_shared<stream<tcp_stream>>(std::move(socket));
-        assert(websocket_ptr);
-        websocket_ptr->text(true);
+    }};
+    auto onClose {[&disconnected](auto ec) {
+        disconnected = !ec;
+        logger::info("Websocket Closed: {}", disconnected);
+    }};
 
-        // Handshake and trigger write 
-        websocket_ptr->async_handshake("ltnm.learncppthroughprojects.com", "/echo", [&websocket_ptr, &echo_buffer, &echo_msg](const boost_error_code &ec){
-            if (ec){
-               Log(ec);
-               return;
-            }
-            std::cout << "Successfully Established Websocket Handshake  \n";
-            std::string msg_orig = "Test 123 ---- today is a great day !! Space X Starship is succesfully lifted off the base";
-            websocket_ptr->async_write(net::buffer(msg_orig), [&websocket_ptr, &echo_buffer, &echo_msg](const boost_error_code& ec, size_t bytes_transferred){
-                  if (ec){
-                     Log(ec);
-                     return;
-                  }
-                  assert(websocket_ptr);
-                  std::cout << "Sent bytes: " << bytes_transferred <<"\n";
-                  // now do async read
-                  websocket_ptr->async_read(echo_buffer, [&websocket_ptr, &echo_buffer, bytes_transferred, &echo_msg](const boost_error_code& ec, size_t bytes_written){
-                        if (ec){
-                           Log(ec);
-                           return;
-                        }
-                        std::cout << "Bytes Written :" << bytes_written << "\n";
-                        assert(websocket_ptr);
-                        assert(bytes_transferred == bytes_written);
-                        std::cout << "Received message: " << echo_msg << "\n";
-                     });
-            });
-        });
-   });
-   ioc.run();
-   return 0;        
+    auto onReceive {[&client_ptr,
+                      &onClose,
+                      &messageReceived,
+                      &messageMatches,
+                      &message](auto ec, auto received) {
+        messageReceived = !ec;
+        messageMatches = message == received;
+        logger::info("Message Matches: {} message {} received {}", messageMatches, message, received);
+        client_ptr->Close(onClose);
+    }};
+
+    client_ptr->Connect(onConnect, onReceive);
+    ioc.run();
+
+    // When we get here, the io_context::run function has run out of work to do.
+    bool ok {
+        connected &&
+        messageSent &&
+        messageReceived &&
+        messageMatches &&
+        disconnected
+    };
+    if (ok) {
+        std::cout << "OK" << std::endl;
+        return 0;
+    } else {
+        std::cerr << "Test failed" << std::endl;
+        return 1;
+    }
 }
