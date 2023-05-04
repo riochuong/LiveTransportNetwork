@@ -2,10 +2,11 @@
 #include <string>
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
+#include <gtest/gtest.h>
 
-
-#include "websocket-client.h"
+#include "network-monitor/websocket-client.h"
 #include "logging.h"
+
 
 namespace net = boost::asio;  
 using tcp = boost::asio::ip::tcp;
@@ -13,8 +14,8 @@ namespace beast = boost::beast;
 using NetworkMonitor::WebSocketClient;
 
 
-
-int main(void) {
+TEST(WebSocketClientTestSuite, TestBasicWebsocketConnection) {
+    
     const std::string url {"ltnm.learncppthroughprojects.com"};
     const std::string endpoint {"/echo"};
     const std::string port {"80"};
@@ -69,11 +70,9 @@ int main(void) {
         messageMatches &&
         disconnected
     };
-    if (ok) {
-        std::cout << "OK" << std::endl;
-        return 0;
-    } else {
-        std::cerr << "Test failed" << std::endl;
-        return 1;
-    }
+  ASSERT_TRUE(ok);
+}
+
+int main(void) {
+    return RUN_ALL_TESTS();
 }
