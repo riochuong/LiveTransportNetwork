@@ -11,7 +11,7 @@ find_package(fmt 8.1.1 REQUIRED)
 
 
 # need to specify include directories here 
-include_directories("${GTest_INCLUDE_DIR}")
+include_directories("${GTest_INCLUDE_DIRS}")
 include_directories("${spdlog_INCLUDE_DIRS}")
 include_directories("${fmt_INCLUDE_DIR}")
 include_directories("${Boost_INCLUDE_DIR}")
@@ -33,9 +33,9 @@ target_compile_features(websocket-client-test
 
 target_link_libraries(websocket-client-test
 		network-monitor
-		${GTest_LIBRARIES}
+		"${GTest_INCLUDE_DIRS}/../lib/libgtest.a"
 		${spdlog_LIBRARIES}
-		${fmt_LIBRARIES}
+		"${fmt_INCLUDE_DIRS_RELEASE}/../lib/libfmt.a"
 		${Boost_LIBRARIES}	
 )
 
