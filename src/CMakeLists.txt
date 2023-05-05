@@ -29,5 +29,5 @@ target_link_libraries(network-monitor
 		# need to link library directly otherwise it wont work properly 
 		"${fmt_INCLUDE_DIRS_RELEASE}/../lib/libfmt.a"
 		${spdlog_LIBRARIES}
-		${Boost_LIBRARIES}		
+		${Boost_LIBRARIES}	
 )

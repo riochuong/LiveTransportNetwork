@@ -2,6 +2,7 @@
 
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
+#include <boost/beast/ssl.hpp>
 
 namespace net = boost::asio;  
 namespace beast = boost::beast;
@@ -26,12 +27,11 @@ namespace NetworkMonitor{
             const std::string& endpoint_;
             const std::string port_;
             const boost::asio::io_context& ioc_;
-            boost::beast::websocket::stream<boost::beast::tcp_stream> websocket_;
             bool is_connected_ = false;
             tcp::resolver resolver_;
             RegisteredCallbacks callbacks_;
             beast::flat_buffer read_buffer_;
-
+            boost::beast::websocket::stream<boost::beast::ssl_stream<boost::beast::tcp_stream>> websocket_;
             // void OnReceivedMessage()
 
             // void OnWriteComplete()
@@ -70,8 +70,15 @@ namespace NetworkMonitor{
                 const std::string& url,
                 const std::string& endpoint,
                 const std::string& port,
-                boost::asio::io_context& ioc
-            ): url_(url), endpoint_(endpoint), port_(port), ioc_(ioc), websocket_(net::make_strand(ioc)), resolver_(net::make_strand(ioc)){
+                boost::asio::io_context& ioc,
+                net::ssl::context& ssl_context
+            ): url_(url), 
+               endpoint_(endpoint), 
+               port_(port), 
+               ioc_(ioc), 
+               resolver_(net::make_strand(ioc)),
+               websocket_(net::make_strand(ioc), ssl_context) 
+               {
                 callbacks_.onConnect = nullptr;
                 callbacks_.onDisconnect = nullptr;
                 callbacks_.onMessage = nullptr;

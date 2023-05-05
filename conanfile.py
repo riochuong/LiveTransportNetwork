@@ -17,4 +17,5 @@ class ConanPackage(ConanFile):
         self.requires("spdlog/1.10.0")
         self.requires("fmt/8.1.1")
         self.requires("gtest/1.13.0")
+        self.requires("openssl/3.1.0")
 
