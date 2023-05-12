@@ -18,4 +18,6 @@ class ConanPackage(ConanFile):
         self.requires("fmt/8.1.1")
         self.requires("gtest/1.13.0")
         self.requires("openssl/3.1.0")
+        self.requires("libcurl/8.0.1")
+        self.requires("nlohmann_json/3.9.1")
 
