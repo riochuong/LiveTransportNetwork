@@ -351,6 +351,12 @@ namespace NetworkMonitor
             "station5",
             "station5"
         };
+        
+        Station station6 {
+            "station6",
+            "station6"
+        };
+
 
         Route route0{
             "route0",
@@ -376,7 +382,7 @@ namespace NetworkMonitor
             "line_001",
             "station4",
             "station0",
-            {"station4", "station5", "station1", "station0"}
+            {"station4", "station5", "station1", "station0", "station6"}
         };
 
         Line line1{
@@ -397,6 +403,7 @@ namespace NetworkMonitor
         ASSERT_TRUE(tnw.AddStation(station3));
         ASSERT_TRUE(tnw.AddStation(station4));
         ASSERT_TRUE(tnw.AddStation(station5));
+        ASSERT_TRUE(tnw.AddStation(station6));
         ASSERT_TRUE(tnw.AddLine(line0));
         ASSERT_TRUE(tnw.AddLine(line1));
 
@@ -408,19 +415,21 @@ namespace NetworkMonitor
         ASSERT_TRUE(tnw.SetTravelTime("station4", "station5", 3));
         ASSERT_TRUE(tnw.SetTravelTime("station5", "station1", 2));
         ASSERT_TRUE(tnw.SetTravelTime("station1", "station0", 1));
+        ASSERT_TRUE(tnw.SetTravelTime("station0", "station6", 10));
         
         // different travel time between two adjacent stations in different directions
         // Line 0 Route0: station0 ---2---> station1 ---3---> station2
         // Line 0 Route1: station3 ---1---> station1 ---3---> station2 ---3--->station4
-        // Line 1 Route2: station4 ---3---> station5 ---2---> station1 ---1--->station0
+        // Line 1 Route2: station4 ---3---> station5 ---2---> station1 ---2--->station0---10-->station6
         ASSERT_EQ(tnw.GetTravelTime("line0", "route0", "station0", "station2"), 5);
         ASSERT_EQ(tnw.GetTravelTime("line0", "route0", "station1", "station2"), 3);
         ASSERT_EQ(tnw.GetTravelTime("line0", "route1", "station1", "station4"), 6);
         ASSERT_EQ(tnw.GetTravelTime("line0", "route1", "station1", "station2"), 3);
-        ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station5", "station0"), 3);
+        ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station5", "station0"), 4);
         ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station5", "station1"), 2);
         ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station4", "station1"), 5);
-        ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station4", "station0"), 6);
+        ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station4", "station0"), 7);
+        ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station4", "station6"), 17);
 
     }
 }

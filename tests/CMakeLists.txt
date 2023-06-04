@@ -22,6 +22,7 @@ include_directories("${nlohmann_json_INCLUDE_DIRS}")
 set(SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/websocket-client-test.cpp"
 			"${CMAKE_CURRENT_SOURCE_DIR}/test-file-downloader.cpp"
 			"${CMAKE_CURRENT_SOURCE_DIR}/test-transport-network.cpp"
+			"${CMAKE_CURRENT_SOURCE_DIR}/test-initialize-network-json-files.cpp"
 			)
 
 add_executable(websocket-client-test ${SOURCES})
@@ -40,7 +41,7 @@ target_compile_definitions(websocket-client-test
 	PRIVATE
 		TEST_CACERT_PEM="${CMAKE_CURRENT_SOURCE_DIR}/cacert.pem"
 		TEST_NETWORK_LAYOUT_JSON="${CMAKE_CURRENT_SOURCE_DIR}/network-layout.json"
-
+		TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}/json-test-files"
 )
 
 target_link_libraries(websocket-client-test

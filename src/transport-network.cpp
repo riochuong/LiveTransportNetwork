@@ -97,13 +97,22 @@ namespace NetworkMonitor
                     start_station = station_id;
                     continue;
                 }
-                logger::info("Add edge: {} {}", start_station, station_id);
-                auto edge_ptr = std::make_shared<Edge>();
-                edge_ptr->lineId = line.id;
-                edge_ptr->routeId = route.id;
-                edge_ptr->travelTime = 0;
-                edge_ptr->nextStop = std::make_shared<Node>(this->nodeDict_[station_id]);
-                this->nodeDict_[start_station].edges.push_back(edge_ptr);
+                bool isNewEdge = true;
+                for (auto& edge: nodeDict_[start_station].edges){
+                    if (edge->nextStop->station_id == station_id){
+                        isNewEdge = false;
+                        break;
+                    }
+                }
+                if (isNewEdge){
+                    logger::info("Add edge: {} {}", start_station, station_id);
+                    auto edge_ptr = std::make_shared<Edge>();
+                    edge_ptr->lineId = line.id;
+                    edge_ptr->routeId = route.id;
+                    edge_ptr->travelTime = 0;
+                    edge_ptr->nextStop = std::make_shared<Node>(this->nodeDict_[station_id]);
+                    this->nodeDict_[start_station].edges.push_back(edge_ptr);
+                }
                 start_station = station_id;
             }
         }
@@ -194,16 +203,33 @@ namespace NetworkMonitor
             return false;
         }
 
+        bool isValid = false;
+
         for (auto &edge : nodeDict_[stationA].edges)
         {
             if (edge->nextStop->station_id == stationB)
             {
                 edge->travelTime = travelTime;
-                return true;
+                logger::info("Set Travel Time: {} -> {} = {} ", stationA, stationB, travelTime);
+                isValid = true;
+                break;
             }
         }
-        logger::error("Station {} is not adjacent to station {}", stationB, stationA);
-        return false;
+        
+        for (auto &edge : nodeDict_[stationB].edges)
+        {
+            if (edge->nextStop->station_id == stationA)
+            {
+                edge->travelTime = travelTime;
+                logger::info("Set Reverse Travel Time: {} -> {} = {} ", stationB, stationA, travelTime);
+                isValid = true;
+                break;
+            }
+        }
+        if (!isValid){
+            logger::error("Station {} is not adjacent to station {}", stationB, stationA);
+        }
+        return isValid;
     }
 
     unsigned int TransportNetwork::GetTravelTimeBetweenAdjStations(const Id &stationA, const Id &stationB)
@@ -276,6 +302,83 @@ namespace NetworkMonitor
         }
         logger::error("Failed to get travel time between stations {} {}", stationA, stationB);
         return 0;
+    }
+
+    
+    bool TransportNetwork::FromJson(nlohmann::json&& src) {
+        const std::string LINES {"lines"};
+        const std::string TRAVEL_TIME {"travel_times"};
+        const std::string STATIONS {"stations"};
+        const std::string ROUTES {"routes"};
+
+        // add all stations 
+        if (src.contains(STATIONS)){
+            for(auto& station: src[STATIONS]){
+                Station newStation{station.at("station_id"), station.at("name")};
+                if (!this->AddStation(newStation)){
+                    return false;
+                }
+            }
+        }
+
+        if (src.contains(LINES)){
+            for(auto& line: src[LINES]){
+                std::vector<Route> newRoutes;
+                for (auto& route: line[ROUTES]){
+                    Route newRoute {
+                        route.at("route_id"),
+                        route.at("direction"),
+                        route.at("line_id"),
+                        route.at("start_station_id"),
+                        route.at("end_station_id"),
+                        route.at("route_stops")
+                    };
+                    newRoutes.push_back(newRoute);
+                }
+                Line newLine {line["line_id"], line["name"], newRoutes};
+                if (!this->AddLine(newLine)){
+                    return false;
+                }
+            }
+        }
+
+        if (src.contains(TRAVEL_TIME)){
+            for (auto &travelTime : src[TRAVEL_TIME]){
+                
+                if (this->lineDict_.find(travelTime["line_id"]) == this->lineDict_.end()){
+                    logger::error("Line {} is not part of the network", travelTime["line_id"]);
+                    return false;
+                }
+                if (this->lineDict_[travelTime["line_id"]].routeMaps.find(travelTime["route_id"]) 
+                        == this->lineDict_[travelTime["line_id"]].routeMaps.end()){
+                    logger::error("Route {} is not part of line {} in the network", travelTime["toute_id"],
+                                                                            travelTime["line_id"]);
+                    return false;
+                }
+
+
+                if (!this->SetTravelTime(travelTime["start_station_id"],
+                                        travelTime["end_station_id"],
+                                        travelTime["travel_time"]
+                                        )){
+                    return false;
+                }                
+            }
+        }
+        // verify all edges have travel time > 0:
+        for(auto& node: this->nodeDict_){
+            for(auto& edge: node.second.edges){
+                    if (edge->travelTime <= 0){
+                        logger::error("Edge {} -> {} has invalid travel time (<=0) {}", 
+                                       node.second.station_id, 
+                                       edge->nextStop->station_id,
+                                       edge->travelTime
+                                       );
+                        return false;
+                    }
+            }
+        }
+        return true;
     }
 
     std::vector<std::shared_ptr<TransportNetwork::Edge>>::const_iterator
