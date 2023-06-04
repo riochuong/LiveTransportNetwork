@@ -58,24 +58,22 @@ namespace NetworkMonitor
         this->lineDict_[line.id].name = line.name;
         for (auto &route : line.routes)
         {
-            if (this->nodeDict_.find(route.startStationId) != this->nodeDict_.end())
+            if (this->nodeDict_.find(route.startStationId) == this->nodeDict_.end())
             {
-                logger::error("Station {} is not already part of the Network !!!");
+                logger::error("Station {} is not part of the Network !!!", route.startStationId);
                 return false;
             }
-            if (this->nodeDict_.find(route.endStationId) != this->nodeDict_.end())
+            if (this->nodeDict_.find(route.endStationId) == this->nodeDict_.end())
             {
+                logger::error("Station {} is not part of the Network !!!", route.endStationId);
+                return false;
+            }
 
-                logger::error("Station {} is not already part of the Network !!!");
-                return false;
+            if (this->lineDict_[line.id].routeMaps.find(route.id) != this->lineDict_[line.id].routeMaps.end())
+            {
+                logger::error("Route id {} is already part of line {} ", route.id, line.id);
             }
-            // add new edge to the network also
-            auto edge_ptr = std::make_shared<Edge>();
-            edge_ptr->lineId = line.id;
-            edge_ptr->routeId = route.id;
-            edge_ptr->travelTime = 0;
-            edge_ptr->nextStop = std::make_shared<Node>(this->nodeDict_[route.endStationId]);
-            this->nodeDict_[route.startStationId].edges.push_back(edge_ptr);
+            // setup new routes
             this->lineDict_[line.id].routeMaps.emplace(route.id, RouteInternal());
             auto &routeInt = this->lineDict_[line.id].routeMaps[route.id];
             routeInt.id = route.id;
@@ -83,6 +81,30 @@ namespace NetworkMonitor
             for (auto &stopId : route.stops)
             {
                 routeInt.stops.push_back(std::make_shared<Node>(this->nodeDict_[stopId]));
+            }
+            // add all new edges to the network also
+            Id start_station = "";
+            for (auto &station_id : route.stops)
+            {
+                if (this->nodeDict_.find(station_id) == this->nodeDict_.end())
+                {
+                    logger::error("Station {} is not part of the network ", station_id);
+                    return false;
+                }
+                // set the first station
+                if (start_station.size() == 0)
+                {
+                    start_station = station_id;
+                    continue;
+                }
+                logger::info("Add edge: {} {}", start_station, station_id);
+                auto edge_ptr = std::make_shared<Edge>();
+                edge_ptr->lineId = line.id;
+                edge_ptr->routeId = route.id;
+                edge_ptr->travelTime = 0;
+                edge_ptr->nextStop = std::make_shared<Node>(this->nodeDict_[station_id]);
+                this->nodeDict_[start_station].edges.push_back(edge_ptr);
+                start_station = station_id;
             }
         }
         return true;
@@ -106,10 +128,23 @@ namespace NetworkMonitor
     {
         if (this->nodeDict_.find(event.stationId) == this->nodeDict_.end())
         {
-            throw std::runtime_error("Station: " + event.stationId + " is not part of the network");
+            logger::error("Station: " + event.stationId + " is not part of the network");
+            return false;
         }
 
-        this->nodeDict_[event.stationId].passengerCount++;
+        if (event.type == PassengerEvent::In)
+        {
+            this->nodeDict_[event.stationId].passengerCount++;
+        }
+        else if (event.type == PassengerEvent::Out)
+        {
+            this->nodeDict_[event.stationId].passengerCount--;
+        }
+        else
+        {
+            logger::critical("Unsupported Passenger event {} ", event.type);
+            return false;
+        }
         return true;
     }
 
@@ -129,11 +164,17 @@ namespace NetworkMonitor
             throw std::runtime_error("Station: " + station + " is not part of the network");
         }
         std::vector<Id> routeList;
-        for (auto it = this->nodeDict_.begin(); it != this->nodeDict_.end(); it++)
+        for (auto it = this->lineDict_.begin(); it != this->lineDict_.end(); it++)
         {
-            if (it->first == station)
+            for (auto route_it = it->second.routeMaps.begin(); route_it != it->second.routeMaps.end(); route_it++)
             {
-                routeList.push_back(it->first);
+                for (auto &node_ptr : route_it->second.stops)
+                {
+                    if (node_ptr->name == station)
+                    {
+                        routeList.push_back(route_it->first);
+                    }
+                }
             }
         }
         return routeList;
@@ -141,12 +182,12 @@ namespace NetworkMonitor
 
     bool TransportNetwork::SetTravelTime(const Id &stationA, const Id &stationB, const unsigned int travelTime)
     {
-        if (this->nodeDict_.find(stationA) != this->nodeDict_.end())
+        if (this->nodeDict_.find(stationA) == this->nodeDict_.end())
         {
             logger::error("Station {} is not part of the network", stationA);
             return false;
         }
-        if (this->nodeDict_.find(stationB) != this->nodeDict_.end())
+        if (this->nodeDict_.find(stationB) == this->nodeDict_.end())
         {
 
             logger::error("Station {} is not part of the network", stationB);
@@ -167,12 +208,12 @@ namespace NetworkMonitor
 
     unsigned int TransportNetwork::GetTravelTimeBetweenAdjStations(const Id &stationA, const Id &stationB)
     {
-        if (this->nodeDict_.find(stationA) != this->nodeDict_.end())
+        if (this->nodeDict_.find(stationA) == this->nodeDict_.end())
         {
             logger::error("Station {} is not part of the network", stationA);
             return 0;
         }
-        if (this->nodeDict_.find(stationB) != this->nodeDict_.end())
+        if (this->nodeDict_.find(stationB) == this->nodeDict_.end())
         {
 
             logger::error("Station {} is not part of the network", stationB);
@@ -203,11 +244,12 @@ namespace NetworkMonitor
             return 0;
         }
         std::shared_ptr<Node> prevStop = nullptr;
+        uint32_t travelTime = 0;
+        bool foundAStop = false;
+        bool foundBStop = false;
+
         for (auto &stop : lineDict_[line].routeMaps[route].stops)
         {
-            bool foundAStop = false;
-            bool foundBStop = false;
-            uint32_t travelTime = 0;
             if (stop->station_id == stationA)
             {
                 foundAStop = true;
@@ -223,6 +265,7 @@ namespace NetworkMonitor
             {
                 int edgeTime = GetTravelTimeBetweenAdjStations(prevStop->station_id, stop->station_id);
                 assert(edgeTime > 0);
+                logger::info("Travel time from {} to {} time {}s", prevStop->station_id, stop->station_id, edgeTime);
                 travelTime += edgeTime;
             }
             if (foundBStop)
@@ -249,9 +292,8 @@ namespace NetworkMonitor
         return returnEdges.begin();
     }
 
-    bool operator==(const Route& r1, const Route& r2) {return r1.id == r2.id;}
+    bool operator==(const Route &r1, const Route &r2) { return r1.id == r2.id; }
 
-    bool operator==(const Line& r1, const Line& r2) {return r1.id == r2.id;}
-
+    bool operator==(const Line &r1, const Line &r2) { return r1.id == r2.id; }
 
 }

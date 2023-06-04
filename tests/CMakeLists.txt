@@ -20,7 +20,9 @@ include_directories("${OpenSSL_INCLUDE_DIR}")
 include_directories("${nlohmann_json_INCLUDE_DIRS}")
 
 set(SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/websocket-client-test.cpp"
-			"${CMAKE_CURRENT_SOURCE_DIR}/test-file-downloader.cpp")
+			"${CMAKE_CURRENT_SOURCE_DIR}/test-file-downloader.cpp"
+			"${CMAKE_CURRENT_SOURCE_DIR}/test-transport-network.cpp"
+			)
 
 add_executable(websocket-client-test ${SOURCES})
 

@@ -67,7 +67,7 @@ namespace NetworkMonitor{
         TransportNetwork();
 
         /*! \brief Destructor */
-        ~TransportNetwork();
+        ~TransportNetwork(){};
 
         TransportNetwork(const TransportNetwork& copy);
 

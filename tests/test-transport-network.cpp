@@ -1,6 +1,7 @@
 
 #include <gtest/gtest.h>
 #include <network-monitor/transport-network.h>
+#include <logging.h>
 
 namespace NetworkMonitor
 {
@@ -64,8 +65,8 @@ namespace NetworkMonitor
             "Line Name",
             {route0},
         };
-        ok = nw.AddLine(line);
-        ASSERT_TRUE(ok);
+        ASSERT_TRUE(nw.AddLine(line));
+        ASSERT_FALSE(nw.AddLine(line));
     }
 
     TEST(TestTransportNetwork, TestRoutesWithSharedStations){
@@ -87,13 +88,339 @@ namespace NetworkMonitor
             "station0",
             "station0"
         };
+        
+        Station station3 {
+            "station3",
+            "station3"
+        };
 
 
-        tnw.AddStation(station0);
-        tnw.AddStation(station1);
-        tnw.AddStation(station2);
+        Route route0{
+            "route_000",
+            "inbound",
+            "line_000",
+            "station0",
+            "station2",
+            {"station0", "station1", "station2"}
+        };
+        Route route1{
+            "route_001",
+            "inbound",
+            "line_000",
+            "station3",
+            "station2",
+            {"station3", "station1", "station2"}
+        };
 
-        Route route0 {}
+        Line line0{
+            "line0",
+            "Line 0",
+            {route0, route1}
+        };        
+        ASSERT_TRUE(tnw.AddStation(station0));
+        ASSERT_TRUE(tnw.AddStation(station1));
+        ASSERT_TRUE(tnw.AddStation(station2));
+        ASSERT_TRUE(tnw.AddStation(station3));
+        ASSERT_TRUE(tnw.AddLine(line0));
+    }
+
+    TEST(TestTransportNetwork, TestRecordingPassengerEventBasic){
+        TransportNetwork tnw {};
+        // Define a line with 2 routes going through some shared stations.
+        // route0: 0 ---> 1 ---> 2
+        // route1: 3 ---> 1 ---> 2
+        Station station1 {
+            "station1",
+            "station1"
+        };
+        
+        Station station2 {
+            "station2",
+            "station2"
+        };
+        
+        Station station0 {
+            "station0",
+            "station0"
+        };
+        
+        Station station3 {
+            "station3",
+            "station3"
+        };
+
+        ASSERT_TRUE(tnw.AddStation(station0));
+        ASSERT_TRUE(tnw.RecordPassengerEvent({"station0", PassengerEvent::Type::In}));
+        // failed as station is not added yet
+        ASSERT_FALSE(tnw.RecordPassengerEvent({"station1", PassengerEvent::Type::In}));
+
+
+    }
+    
+    TEST(TestTransportNetwork, TestRecordingPassengerEventInOut){
+        TransportNetwork tnw {};
+        // Define a line with 2 routes going through some shared stations.
+        // route0: 0 ---> 1 ---> 2
+        // route1: 3 ---> 1 ---> 2
+        Station station1 {
+            "station1",
+            "station1"
+        };
+       
+        Station station0 {
+            "station0",
+            "station0"
+        };
+        
+        ASSERT_TRUE(tnw.AddStation(station0));
+        ASSERT_TRUE(tnw.AddStation(station1));
+        const uint32_t num_passenger_in = 100;
+        const uint32_t num_passenger_out = 50;
+        for (int i = 0; i < num_passenger_in; i++){
+            tnw.RecordPassengerEvent({"station0", PassengerEvent::Type::In});
+        }
+        for (int i = 0; i < num_passenger_out; i++){
+            tnw.RecordPassengerEvent({"station0", PassengerEvent::Type::Out});
+        }
+        ASSERT_TRUE(tnw.GetPassengerCount("station0") == (num_passenger_in - num_passenger_out));
+        // negative customer count is valid
+        for (int i = 0; i < num_passenger_out; i++){
+            tnw.RecordPassengerEvent({"station1", PassengerEvent::Type::Out});
+        }
+        ASSERT_TRUE(tnw.GetPassengerCount("station1") == (-1) * (int64_t)(num_passenger_out));
+    }
+
+    TEST(TestTransportNetwork, TestGetRouteServingAtStation){
+        TransportNetwork tnw {};
+        Station station1 {
+            "station1",
+            "station1"
+        };
+       
+        Station station0 {
+            "station0",
+            "station0"
+        };
+        
+        Station station2 {
+            "station2",
+            "station2"
+        };
+        
+        Station station3 {
+            "station3",
+            "station3"
+        };
+        
+        Route route0{
+            "route_000",
+            "inbound",
+            "line_000",
+            "station0",
+            "station2",
+            {"station0", "station1", "station2"}
+        };
+        
+        Route route1{
+            "route_001",
+            "inbound",
+            "line_000",
+            "station3",
+            "station2",
+            {"station3", "station1", "station2"}
+        };
+
+        Line line0{
+            "line0",
+            "Line 0",
+            {route0, route1}
+        }; 
+        ASSERT_TRUE(tnw.AddStation(station0));
+        ASSERT_TRUE(tnw.AddStation(station1));
+        ASSERT_TRUE(tnw.AddStation(station2));
+        ASSERT_TRUE(tnw.AddStation(station3));
+        ASSERT_TRUE(tnw.AddLine(line0));
+
+        ASSERT_EQ(tnw.GetRouteServingAtStation("station1").size(), 2);
+        ASSERT_EQ(tnw.GetRouteServingAtStation("station2").size(), 2);
+        ASSERT_EQ(tnw.GetRouteServingAtStation("station0").size(), 1);
+        ASSERT_EQ(tnw.GetRouteServingAtStation("station3").size(), 1);
+        ASSERT_THROW(tnw.GetRouteServingAtStation("station4"), std::runtime_error);
+    }
+
+    TEST(TestTransportNetwork, TestSetTravelTime){
+        TransportNetwork tnw {};
+        Station station1 {
+            "station1",
+            "station1"
+        };
+       
+        Station station0 {
+            "station0",
+            "station0"
+        };
+        
+        Station station2 {
+            "station2",
+            "station2"
+        };
+        
+        Station station3 {
+            "station3",
+            "station3"
+        };
+
+ 
+        Station station4 {
+            "station4",
+            "station4"
+        };
+        
+        Route route0{
+            "route_000",
+            "inbound",
+            "line_000",
+            "station0",
+            "station2",
+            {"station0", "station1", "station2"}
+        };
+        
+        Route route1{
+            "route_001",
+            "inbound",
+            "line_000",
+            "station3",
+            "station4",
+            {"station3", "station1", "station2", "station4"}
+        };
+
+        Line line0{
+            "line0",
+            "Line 0",
+            {route0, route1}
+        }; 
+        ASSERT_TRUE(tnw.AddStation(station0));
+        ASSERT_TRUE(tnw.AddStation(station1));
+        ASSERT_TRUE(tnw.AddStation(station2));
+        ASSERT_TRUE(tnw.AddStation(station3));
+        ASSERT_TRUE(tnw.AddStation(station4));
+        ASSERT_TRUE(tnw.AddLine(line0));
+        
+        // different travel time between two adjacent stations in different directions
+        ASSERT_TRUE(tnw.SetTravelTime("station3", "station1", 10));
+        ASSERT_EQ(tnw.GetTravelTimeBetweenAdjStations("station3", "station1"), 10);
+
+        // non-adjacent stations
+        ASSERT_FALSE(tnw.SetTravelTime("station3", "station2", 10));
+        ASSERT_FALSE(tnw.SetTravelTime("station1", "station4", 10));
+        ASSERT_FALSE(tnw.SetTravelTime("station4", "station1", 10));
+
+        // Station that's not in the network
+        ASSERT_FALSE(tnw.SetTravelTime("station5", "station1", 10));
+    }
+
+    TEST(TestTransportNetwork, TestGetTravelTime){
+        TransportNetwork tnw {};
+        Station station1 {
+            "station1",
+            "station1"
+        };
+       
+        Station station0 {
+            "station0",
+            "station0"
+        };
+        
+        Station station2 {
+            "station2",
+            "station2"
+        };
+        
+        Station station3 {
+            "station3",
+            "station3"
+        };
+
+ 
+        Station station4 {
+            "station4",
+            "station4"
+        };
+        
+        Station station5 {
+            "station5",
+            "station5"
+        };
+
+        Route route0{
+            "route0",
+            "inbound",
+            "line_000",
+            "station0",
+            "station2",
+            {"station0", "station1", "station2"}
+        };
+        
+        Route route1{
+            "route1",
+            "inbound",
+            "line_000",
+            "station3",
+            "station4",
+            {"station3", "station1", "station2", "station4"}
+        };
+        
+        Route route2{
+            "route2",
+            "inbound",
+            "line_001",
+            "station4",
+            "station0",
+            {"station4", "station5", "station1", "station0"}
+        };
+
+        Line line1{
+            "line1",
+            "Line 1",
+            {route2}
+        };
+
+        Line line0{
+            "line0",
+            "Line 0",
+            {route0, route1}
+        };
+
+        ASSERT_TRUE(tnw.AddStation(station0));
+        ASSERT_TRUE(tnw.AddStation(station1));
+        ASSERT_TRUE(tnw.AddStation(station2));
+        ASSERT_TRUE(tnw.AddStation(station3));
+        ASSERT_TRUE(tnw.AddStation(station4));
+        ASSERT_TRUE(tnw.AddStation(station5));
+        ASSERT_TRUE(tnw.AddLine(line0));
+        ASSERT_TRUE(tnw.AddLine(line1));
+
+        ASSERT_TRUE(tnw.SetTravelTime("station0", "station1", 2));
+        ASSERT_TRUE(tnw.SetTravelTime("station1", "station2", 3));
+        ASSERT_TRUE(tnw.SetTravelTime("station3", "station1", 1));
+        ASSERT_TRUE(tnw.SetTravelTime("station1", "station2", 3));
+        ASSERT_TRUE(tnw.SetTravelTime("station2", "station4", 3));
+        ASSERT_TRUE(tnw.SetTravelTime("station4", "station5", 3));
+        ASSERT_TRUE(tnw.SetTravelTime("station5", "station1", 2));
+        ASSERT_TRUE(tnw.SetTravelTime("station1", "station0", 1));
+        
+        // different travel time between two adjacent stations in different directions
+        // Line 0 Route0: station0 ---2---> station1 ---3---> station2
+        // Line 0 Route1: station3 ---1---> station1 ---3---> station2 ---3--->station4
+        // Line 1 Route2: station4 ---3---> station5 ---2---> station1 ---1--->station0
+        ASSERT_EQ(tnw.GetTravelTime("line0", "route0", "station0", "station2"), 5);
+        ASSERT_EQ(tnw.GetTravelTime("line0", "route0", "station1", "station2"), 3);
+        ASSERT_EQ(tnw.GetTravelTime("line0", "route1", "station1", "station4"), 6);
+        ASSERT_EQ(tnw.GetTravelTime("line0", "route1", "station1", "station2"), 3);
+        ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station5", "station0"), 3);
+        ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station5", "station1"), 2);
+        ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station4", "station1"), 5);
+        ASSERT_EQ(tnw.GetTravelTime("line1", "route2", "station4", "station0"), 6);
 
     }
 }
