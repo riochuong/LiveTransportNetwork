@@ -32,13 +32,13 @@ namespace NetworkMonitor
         ASSERT_EQ(tnw.GetTravelTime("line_002", "route_012", "station_095", "station_096"), 1);
     }
 
-    // TEST(TestTransportNetwork, MissingTravelTime){
-    //     auto networJsonFile = std::filesystem::path(TEST_FOLDER) / "missing-travel-time-layout.json";
-    //     logger::info("Json file path {}", networJsonFile.c_str());
-    //     ASSERT_TRUE(std::filesystem::exists(networJsonFile));
-    //     nlohmann::json data = NetworkMonitor::ParseJsonFile(networJsonFile);
-    //     TransportNetwork tnw {};
-    //     ASSERT_FALSE(tnw.FromJson(std::move(data))); // missing data 
-    // }
+    TEST(TestTransportNetwork, MissingTravelTime){
+        auto networJsonFile = std::filesystem::path(TEST_FOLDER) / "missing-travel-time-layout.json";
+         logger::info("Json file path {}", networJsonFile.c_str());
+         ASSERT_TRUE(std::filesystem::exists(networJsonFile));
+         nlohmann::json data = NetworkMonitor::ParseJsonFile(networJsonFile);
+         TransportNetwork tnw {};
+         ASSERT_FALSE(tnw.FromJson(std::move(data))); // missing data 
+    }
 }
 

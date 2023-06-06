@@ -9149,13 +9149,13 @@
             "route_id": "route_083",
             "travel_time": 3
         },
-        //{
-        //    "start_station_id": "station_316",
-        //    "end_station_id": "station_317",
-        //    "line_id": "line_012",
-        //    "route_id": "route_083",
-        //    "travel_time": 1
-        //},
+        {
+            "start_station_id": "station_316",
+            "end_station_id": "station_317",
+            "line_id": "line_012",
+            "route_id": "route_083",
+            "travel_time": 1
+        },
         {
             "start_station_id": "station_317",
             "end_station_id": "station_318",
@@ -9168,7 +9168,7 @@
             "end_station_id": "station_425",
             "line_id": "line_012",
             "route_id": "route_095",
-            "travel_time": 6
+            "travel_time": 0
         }
     ]
 }

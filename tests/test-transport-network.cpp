@@ -414,7 +414,7 @@ namespace NetworkMonitor
         ASSERT_TRUE(tnw.SetTravelTime("station2", "station4", 3));
         ASSERT_TRUE(tnw.SetTravelTime("station4", "station5", 3));
         ASSERT_TRUE(tnw.SetTravelTime("station5", "station1", 2));
-        ASSERT_TRUE(tnw.SetTravelTime("station1", "station0", 1));
+        ASSERT_TRUE(tnw.SetTravelTime("station1", "station0", 2));
         ASSERT_TRUE(tnw.SetTravelTime("station0", "station6", 10));
         
         // different travel time between two adjacent stations in different directions

@@ -365,10 +365,10 @@ namespace NetworkMonitor
                 }                
             }
         }
-        // verify all edges have travel time > 0:
+        // verify all edges have travel time >= 0:
         for(auto& node: this->nodeDict_){
             for(auto& edge: node.second.edges){
-                    if (edge->travelTime <= 0){
+                    if (edge->travelTime == 0){
                         logger::error("Edge {} -> {} has invalid travel time (<=0) {}", 
                                        node.second.station_id, 
                                        edge->nextStop->station_id,

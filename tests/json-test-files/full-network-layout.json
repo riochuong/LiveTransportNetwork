@@ -5577,7 +5577,7 @@
             "end_station_id": "station_021",
             "line_id": "line_000",
             "route_id": "route_000",
-            "travel_time": 0
+            "travel_time": 1 
         },
         {
             "start_station_id": "station_021",
@@ -5717,7 +5717,7 @@
             "end_station_id": "station_042",
             "line_id": "line_001",
             "route_id": "route_002",
-            "travel_time": 0
+            "travel_time": 1 
         },
         {
             "start_station_id": "station_042",
@@ -5983,7 +5983,7 @@
             "end_station_id": "station_077",
             "line_id": "line_002",
             "route_id": "route_012",
-            "travel_time": 0
+            "travel_time": 1
         },
         {
             "start_station_id": "station_077",
@@ -6536,7 +6536,7 @@
             "end_station_id": "station_085",
             "line_id": "line_003",
             "route_id": "route_018",
-            "travel_time": 0
+            "travel_time": 1
         },
         {
             "start_station_id": "station_085",
@@ -6872,7 +6872,7 @@
             "end_station_id": "station_022",
             "line_id": "line_005",
             "route_id": "route_031",
-            "travel_time": 0
+            "travel_time": 1
         },
         {
             "start_station_id": "station_022",
@@ -7481,7 +7481,7 @@
             "end_station_id": "station_217",
             "line_id": "line_007",
             "route_id": "route_044",
-            "travel_time": 0
+            "travel_time": 1
         },
         {
             "start_station_id": "station_217",
@@ -7502,14 +7502,14 @@
             "end_station_id": "station_020",
             "line_id": "line_007",
             "route_id": "route_044",
-            "travel_time": 0
+            "travel_time": 1 
         },
         {
             "start_station_id": "station_020",
             "end_station_id": "station_021",
             "line_id": "line_007",
             "route_id": "route_044",
-            "travel_time": 0
+            "travel_time": 1 
         },
         {
             "start_station_id": "station_021",
@@ -7712,14 +7712,14 @@
             "end_station_id": "station_218",
             "line_id": "line_008",
             "route_id": "route_054",
-            "travel_time": 0
+            "travel_time": 1 
         },
         {
             "start_station_id": "station_218",
             "end_station_id": "station_019",
             "line_id": "line_008",
             "route_id": "route_054",
-            "travel_time": 0
+            "travel_time": 1 
         },
         {
             "start_station_id": "station_019",
@@ -7740,7 +7740,7 @@
             "end_station_id": "station_244",
             "line_id": "line_008",
             "route_id": "route_054",
-            "travel_time": 0
+            "travel_time": 1 
         },
         {
             "start_station_id": "station_244",
@@ -9172,3 +9172,4 @@
         }
     ]
 }
+
