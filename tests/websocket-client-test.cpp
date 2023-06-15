@@ -14,7 +14,7 @@
 namespace net = boost::asio;  
 using tcp = boost::asio::ip::tcp;
 namespace beast = boost::beast;
-using NetworkMonitor::WebSocketClient;
+using NetworkMonitor::BoostWebSocketClient;
 
 
 TEST(WebSocketClientTestSuite, TestBasicWebsocketConnection) {
@@ -28,7 +28,7 @@ TEST(WebSocketClientTestSuite, TestBasicWebsocketConnection) {
     ssl_context.set_verify_mode(net::ssl::verify_peer);
     ssl_context.load_verify_file(TEST_CACERT_PEM);
     // need to created shared_pointer here to enable share_from_this
-    auto client_ptr = std::make_shared<WebSocketClient>(url, endpoint, port, ioc, ssl_context);
+    auto client_ptr = std::make_shared<BoostWebSocketClient>(url, endpoint, port, ioc, ssl_context);
 
     // We use these flags to check that the connection, send, receive functions
     // work as expected.
