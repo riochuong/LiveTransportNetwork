@@ -11,7 +11,6 @@ namespace net = boost::asio;
 namespace beast = boost::beast;
 using tcp = boost::asio::ip::tcp;
 
-
 #define IP_CONNECTION_TIMEOUT_SEC 60
 
 namespace NetworkMonitor{
@@ -28,7 +27,7 @@ namespace NetworkMonitor{
         typename Resolver,
         typename WebSocketStream
     >
-    class WebSocketClient: public std::enable_shared_from_this<WebSocketClient> {
+    class WebSocketClient: public std::enable_shared_from_this<WebSocketClient<Resolver, WebSocketStream>> {
         private:
             const std::string& url_;
             const std::string& endpoint_;
@@ -39,11 +38,29 @@ namespace NetworkMonitor{
             RegisteredCallbacks callbacks_;
             beast::flat_buffer read_buffer_;
             WebSocketStream websocket_;
-            // void OnReceivedMessage()
-
-            // void OnWriteComplete()
-
-            void OnResolve(beast::error_code ec, tcp::resolver::results_type results);
+            
+            void OnResolve(beast::error_code ec, tcp::resolver::results_type results)
+            {
+                logger::info("OnResolve Entry");
+                if (ec)
+                {
+                    logger::error("OnResolve - failed to resolve url: {} at port: {}", this->url_, this->port_);
+                    if (this->callbacks_.onConnect)
+                    {
+                        callbacks_.onConnect(ec);
+                    }
+                    logger::error("OnResolve Error Code: {}", ec.message());
+                    this->is_connected_ = false;
+                    return;
+                }
+                // get resolve data
+                logger::info("OnResolve Set IP Connection Timeout to {} sec", IP_CONNECTION_TIMEOUT_SEC);
+                beast::get_lowest_layer(websocket_).expires_after(std::chrono::seconds(IP_CONNECTION_TIMEOUT_SEC));
+                // try to connect with given sequences of ip address
+                beast::get_lowest_layer(websocket_).async_connect(*results.begin(), 
+                            beast::bind_front_handler(&NetworkMonitor::WebSocketClient<Resolver, WebSocketStream>::OnConnect, 
+                                                        this->shared_from_this()));
+            }
 
             void OnConnect(beast::error_code ec) {
                 logger::info("OnConnect Entry");
@@ -78,7 +95,7 @@ namespace NetworkMonitor{
                                         return;
                                    }
                                     logger::error("OnConnect - Successfully TLS handhsake");
-                                    websocket_.async_handshake(url_, endpoint_, beast::bind_front_handler(&NetworkMonitor::WebSocketClient::OnHandshake, shared_from_this())); });
+                                    websocket_.async_handshake(url_, endpoint_, beast::bind_front_handler(&NetworkMonitor::WebSocketClient<Resolver, WebSocketStream>::OnHandshake, this->shared_from_this())); });
             }
 
             void OnHandshake(beast::error_code ec){
@@ -171,8 +188,8 @@ namespace NetworkMonitor{
                 }
                 websocket_.async_read(read_buffer_,
                                       beast::bind_front_handler(
-                                          &NetworkMonitor::WebSocketClient::OnReceivedMessage,
-                                          shared_from_this()));
+                                          &NetworkMonitor::WebSocketClient<Resolver, WebSocketStream>::OnReceivedMessage,
+                                          this->shared_from_this()));
             }
 
         public:
@@ -237,8 +254,8 @@ namespace NetworkMonitor{
                     this->url_,
                     this->port_,
                     beast::bind_front_handler(
-                        &NetworkMonitor::WebSocketClient::OnResolve,
-                        shared_from_this()));
+                        &NetworkMonitor::WebSocketClient<Resolver, WebSocketStream>::OnResolve,
+                        this->shared_from_this()));
             }
 
             /*! \brief Send a string message to remote server
@@ -248,7 +265,7 @@ namespace NetworkMonitor{
              *  \param onSend          Called when a message is sent successfully or if it failed to send
              */
             void Send(
-                const std::string& messsage,
+                const std::string& message,
                 std::function<void (boost::system::error_code)> onSend = nullptr
             ){
                 if (!this->is_connected_)
@@ -258,8 +275,8 @@ namespace NetworkMonitor{
                 }
                 callbacks_.onSend = onSend;
                 websocket_.async_write(net::buffer(message),
-                                       beast::bind_front_handler(&NetworkMonitor::WebSocketClient::OnWriteComplete,
-                                                                 shared_from_this()));
+                                       beast::bind_front_handler(&NetworkMonitor::WebSocketClient<Resolver, WebSocketStream>::OnWriteComplete,
+                                                                 this->shared_from_this()));
             }
 
             /*! \brief Close the websocket connection.
@@ -272,7 +289,7 @@ namespace NetworkMonitor{
                 callbacks_.onClose = onClose;
                 websocket_.async_close(
                     beast::websocket::close_code::normal,
-                    beast::bind_front_handler(&NetworkMonitor::WebSocketClient::OnClose, shared_from_this()));
+                    beast::bind_front_handler(&NetworkMonitor::WebSocketClient<Resolver, WebSocketStream>::OnClose, this->shared_from_this()));
             }
     };
     using BoostWebSocketClient = WebSocketClient<
