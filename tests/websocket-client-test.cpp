@@ -1,20 +1,67 @@
 #include <iostream>
 #include <string>
 #include <filesystem>    // only available C++17
+#include <memory>
 #include <sstream>
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #include <gtest/gtest.h>
-
+#include <boost/asio.hpp>
 
 #include "network-monitor/websocket-client.h"
 #include "logging.h"
+#include "boost-mock.h"
 
+using TestWebSocketClient = NetworkMonitor::WebSocketClient<
+    MockResolver,
+    boost::beast::websocket::stream<
+        boost::beast::ssl_stream<boost::beast::tcp_stream>
+    >
+>;
 
 namespace net = boost::asio;  
 using tcp = boost::asio::ip::tcp;
 namespace beast = boost::beast;
 using NetworkMonitor::BoostWebSocketClient;
+
+
+class TestWebSocketClientFixture: public ::testing::Test {
+
+    protected:
+        void SetUp() {
+            MockResolver::resolverErrorCode = {};
+        }
+
+        void TearDown() {
+
+        }
+};
+
+TEST_F(TestWebSocketClientFixture, TestDNSFailed){
+    
+    const std::string url {"some.echo-server.com"};
+    const std::string endpoint{"/"};
+    const std::string port {"443"};
+
+    boost::asio::ssl::context ctx {boost::asio::ssl::context::tlsv12_client};
+    ctx.load_verify_file(TEST_CACERT_PEM);
+    boost::asio::io_context ioc {};
+    MockResolver::resolverErrorCode = boost::asio::error::host_not_found;
+
+    auto clientPtr = std::make_shared<TestWebSocketClient>(url, endpoint, port, ioc, ctx);
+
+    bool on_connect_called = false;
+    auto OnConnect {
+        [&on_connect_called](auto ec){
+            ASSERT_EQ(ec, boost::asio::error::host_not_found);
+            on_connect_called = true;
+        }
+    };
+    clientPtr->Connect(OnConnect);
+    ioc.run();
+    ASSERT_TRUE(on_connect_called);
+
+}
 
 
 TEST(WebSocketClientTestSuite, TestBasicWebsocketConnection) {
@@ -141,6 +188,7 @@ TEST(WebSocketClientTestSuite, TestStompNetworkEvents){
     client_ptr->Connect(onConnect, onReceive);
     ioc.run();
 }
+
 
 int main(void)
 {

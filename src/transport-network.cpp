@@ -105,7 +105,7 @@ namespace NetworkMonitor
                     }
                 }
                 if (isNewEdge){
-                    logger::info("Add edge: {} {}", start_station, station_id);
+                    logger::debug("Add edge: {} {}", start_station, station_id);
                     auto edge_ptr = std::make_shared<Edge>();
                     edge_ptr->lineId = line.id;
                     edge_ptr->routeId = route.id;
@@ -210,7 +210,7 @@ namespace NetworkMonitor
             if (edge->nextStop->station_id == stationB)
             {
                 edge->travelTime = travelTime;
-                logger::info("Set Travel Time: {} -> {} = {} ", stationA, stationB, travelTime);
+                logger::debug("Set Travel Time: {} -> {} = {} ", stationA, stationB, travelTime);
                 isValid = true;
                 break;
             }
@@ -221,7 +221,7 @@ namespace NetworkMonitor
             if (edge->nextStop->station_id == stationA)
             {
                 edge->travelTime = travelTime;
-                logger::info("Set Reverse Travel Time: {} -> {} = {} ", stationB, stationA, travelTime);
+                logger::debug("Set Reverse Travel Time: {} -> {} = {} ", stationB, stationA, travelTime);
                 isValid = true;
                 break;
             }
@@ -291,7 +291,7 @@ namespace NetworkMonitor
             {
                 int edgeTime = GetTravelTimeBetweenAdjStations(prevStop->station_id, stop->station_id);
                 assert(edgeTime > 0);
-                logger::info("Travel time from {} to {} time {}s", prevStop->station_id, stop->station_id, edgeTime);
+                logger::debug("Travel time from {} to {} time {}s", prevStop->station_id, stop->station_id, edgeTime);
                 travelTime += edgeTime;
             }
             if (foundBStop)
