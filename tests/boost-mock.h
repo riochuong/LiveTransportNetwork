@@ -186,7 +186,7 @@ namespace NetworkMonitor
                             stream->get_executor(),
                             boost::beast::bind_handler(
                                 std::move(handler),
-                                MockWebSocketStream::websocketErrorCode
+                                websocketErrorCode
                             )
                          );
                     },
@@ -194,8 +194,86 @@ namespace NetworkMonitor
                     this 
                 );
             }
+            static std::string readMessage;
+            template <typename DynamicBuffer, typename ReadHandler>
+            auto async_read(DynamicBuffer &buffer, ReadHandler&& handler){
+                
+                boost::asio::async_initiate<ReadHandler, 
+                                            void (const boost::beast::error_code &, std::size_t)>(
+                    
+                    [&buffer](auto &&handler, auto stream){
+                        // copy message to buffer
+                        logger::info("Read Message: {}", readMessage); 
+                        std::size_t copied = boost::asio::buffer_copy(buffer.prepare(readMessage.size()), boost::asio::buffer(readMessage));
+                        buffer.commit(readMessage.size());
+                        logger::info("Buffer Size after copy: {} {}", buffer.data().size(), copied); 
+                        logger::info("Websocket Error: {} ", websocketErrorCode.to_string());
+
+                        boost::asio::post(
+                            stream->get_executor(),
+                            boost::beast::bind_handler(
+                                std::move(handler),
+                                websocketErrorCode,
+                                readMessage.size()
+                            )
+                        );
+                    },
+                    handler,
+                    this                        
+                );                
+            }
+
+            static std::string writeMessage;
+            template <typename DynamicBuffer, typename WriteHandler>
+            auto async_write(const DynamicBuffer &buffer, WriteHandler&& handler){
+                
+                boost::asio::async_initiate<WriteHandler, 
+                                            void (const boost::beast::error_code &, std::size_t)>(
+                    
+                    [&buffer](auto &&handler, auto stream){
+                        // copy message to buffer
+                        std::string msg = boost::beast::buffers_to_string(buffer); 
+                        logger::info("Received sent message: {} {}", msg, msg.size()); 
+                        logger::info("Websocket Error Code: {} ", websocketErrorCode.to_string()); 
+                        boost::asio::post(
+                            stream->get_executor(),
+                            boost::beast::bind_handler(
+                                std::move(handler),
+                                websocketErrorCode,
+                                msg.size()
+                            )
+                        );
+                    },
+                    handler,
+                    this                        
+                );                
+            }
+            
+            template <typename CloseHandler>
+            auto async_close(beast::websocket::close_code, CloseHandler&& handler){
+                
+                boost::asio::async_initiate<CloseHandler, 
+                                            void (const boost::beast::error_code &)>(
+ 
+                    [](auto &&handler, auto stream){
+                        // copy message to buffer
+                        boost::asio::post(
+                            stream->get_executor(),
+                            boost::beast::bind_handler(
+                                std::move(handler),
+                                websocketErrorCode
+                            )
+                        );
+                    },
+                    handler,
+                    this                        
+                );                
+            }
 
     };
+
+    template <typename TransportLayer>
+    inline std::string MockWebSocketStream<TransportLayer>::readMessage = {};
 
     template <typename TransportLayer>
     inline boost::system::error_code MockWebSocketStream<TransportLayer>::websocketErrorCode = {};

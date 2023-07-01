@@ -23,7 +23,7 @@ namespace net = boost::asio;
 using tcp = boost::asio::ip::tcp;
 namespace beast = boost::beast;
 using NetworkMonitor::BoostWebSocketClient;
-
+using namespace NetworkMonitor;
 
 class TestWebSocketClientFixture: public ::testing::Test {
 
@@ -51,7 +51,8 @@ TEST_F(TestWebSocketClientFixture, TestWebsocketFailedHandshake){
     ctx.load_verify_file(TEST_CACERT_PEM);
     boost::asio::io_context ioc {};
     namespace websocket = boost::beast::websocket;
-    NetworkMonitor::MockSslStream<NetworkMonitor::MockTcpStream>::sslErrorCode = websocket::error::no_connection;
+    NetworkMonitor::MockWebSocketStream<
+                    NetworkMonitor::MockSslStream<NetworkMonitor::MockTcpStream>>::websocketErrorCode = websocket::error::no_connection;
 
     auto clientPtr = std::make_shared<TestWebSocketClient>(url, endpoint, port, ioc, ctx);
 
@@ -121,6 +122,97 @@ TEST_F(TestWebSocketClientFixture, TestDNSFailed){
 
 }
 
+TEST_F(TestWebSocketClientFixture, TestOnMessageReceived){
+    
+    const std::string url {"some.echo-server.com"};
+    const std::string endpoint{"/"};
+    const std::string port {"443"};
+
+    boost::asio::ssl::context ctx {boost::asio::ssl::context::tlsv12_client};
+    ctx.load_verify_file(TEST_CACERT_PEM);
+    boost::asio::io_context ioc {}; 
+
+    auto clientPtr = std::make_shared<TestWebSocketClient>(url, endpoint, port, ioc, ctx);
+    using namespace NetworkMonitor;
+    NetworkMonitor::MockWebSocketStream<
+                    NetworkMonitor::MockSslStream<NetworkMonitor::MockTcpStream>>::readMessage = {"test 123"};
+    bool on_connect_called = false;
+    bool on_message_called = false;
+    auto OnConnect {
+        [&on_connect_called](auto ec){
+            on_connect_called = true;
+        }
+    };
+    auto OnMessage {
+        [&on_message_called](auto ec, string message){
+            namespace websocket = boost::beast::websocket;
+            if (on_message_called){
+                ASSERT_TRUE(ec == websocket::error::bad_method);
+                return;
+            }
+            on_message_called = true;
+            // set error here so we only reach here once 
+            MockWebSocketStream<MockSslStream<MockTcpStream>>::websocketErrorCode = websocket::error::bad_method; 
+            ASSERT_TRUE(message == MockWebSocketStream<MockSslStream<MockTcpStream>>::readMessage);
+        }
+    };
+    clientPtr->Connect(OnConnect, OnMessage);
+    ioc.run();
+    ASSERT_TRUE(on_connect_called);
+    ASSERT_TRUE(on_message_called);
+    clientPtr->Close();
+}
+
+TEST_F(TestWebSocketClientFixture, TestMockOnSendMessage){
+    
+    const std::string url {"some.echo-server.com"};
+    const std::string endpoint{"/"};
+    const std::string port {"443"};
+
+    boost::asio::ssl::context ctx {boost::asio::ssl::context::tlsv12_client};
+    ctx.load_verify_file(TEST_CACERT_PEM);
+    boost::asio::io_context ioc {}; 
+
+    auto clientPtr = std::make_shared<TestWebSocketClient>(url, endpoint, port, ioc, ctx);
+    using namespace NetworkMonitor;
+    NetworkMonitor::MockWebSocketStream<
+                    NetworkMonitor::MockSslStream<NetworkMonitor::MockTcpStream>>::readMessage = {"test 123"};
+    bool on_connect_called = false;
+    bool on_send_called = false;
+    std::string sentMessage = "test mock 123";
+
+    // stop looping of reading 
+    auto OnMessage{
+        [](auto ec, std::string msg)
+        {
+            
+            MockWebSocketStream<MockSslStream<MockTcpStream>>::websocketErrorCode = \
+                            boost::asio::error::operation_aborted; 
+        }
+    };
+
+    auto OnSend {
+        [&on_send_called, &sentMessage](auto ec, std::size_t byte_transferred){
+           on_send_called = true; 
+           ASSERT_TRUE(sentMessage.size() == byte_transferred);
+        }
+    };
+
+    auto OnConnect {
+        [&on_connect_called, &sentMessage, clientPtr, &OnSend](auto ec){
+            on_connect_called = true;
+            clientPtr->Send(sentMessage, OnSend);
+        }
+    };
+    clientPtr->Connect(OnConnect, OnMessage);
+    ioc.run();
+    ASSERT_TRUE(on_connect_called);
+    ASSERT_TRUE(on_send_called);
+    clientPtr->Close();
+}
+
+
+
 TEST_F(TestWebSocketClientFixture, TestFailedSocketConnect){
     const std::string url{"some.echo-server.com"};
     const std::string endpoint{"/"};
@@ -134,17 +226,76 @@ TEST_F(TestWebSocketClientFixture, TestFailedSocketConnect){
     auto clientPtr = std::make_shared<TestWebSocketClient>(url, endpoint, port, ioc, ctx);
 
     bool on_connect_called = false;
+
+    MockWebSocketStream<MockSslStream<MockTcpStream>>::websocketErrorCode = boost::asio::error::operation_aborted; 
+
     auto OnConnect{
         [&on_connect_called](auto ec)
         {
             ASSERT_EQ(ec, boost::asio::error::connection_refused);
             on_connect_called = true;
-        }};
+        }
+    };
+
     clientPtr->Connect(OnConnect);
     ioc.run();
     ASSERT_TRUE(on_connect_called);
 }
 
+TEST_F(TestWebSocketClientFixture, TestMockSocketSuccessfullConnect){
+    const std::string url{"some.echo-server.com"};
+    const std::string endpoint{"/"};
+    const std::string port{"443"};
+
+    boost::asio::ssl::context ctx{boost::asio::ssl::context::tlsv12_client};
+    ctx.load_verify_file(TEST_CACERT_PEM);
+    boost::asio::io_context ioc{};
+    NetworkMonitor::MockTcpStream::connectErrorCode = {}; 
+    auto clientPtr = std::make_shared<TestWebSocketClient>(url, endpoint, port, ioc, ctx);
+
+    bool on_connect_called = false;
+    auto OnConnect{
+        [&on_connect_called](auto ec)
+        {
+            on_connect_called = true;
+            MockWebSocketStream<MockSslStream<MockTcpStream>>::websocketErrorCode = boost::asio::error::operation_aborted; 
+        }
+    };
+    clientPtr->Connect(OnConnect);
+    ioc.run();
+    ASSERT_TRUE(on_connect_called);
+}
+
+TEST_F(TestWebSocketClientFixture, TestMockSocketOnClose){
+    const std::string url{"some.echo-server.com"};
+    const std::string endpoint{"/"};
+    const std::string port{"443"};
+
+    boost::asio::ssl::context ctx{boost::asio::ssl::context::tlsv12_client};
+    ctx.load_verify_file(TEST_CACERT_PEM);
+    boost::asio::io_context ioc{};
+    NetworkMonitor::MockTcpStream::connectErrorCode = {}; 
+    auto clientPtr = std::make_shared<TestWebSocketClient>(url, endpoint, port, ioc, ctx);
+
+    bool on_connect_called = false;
+    bool on_close_called = false;
+    auto OnClose {
+        [&on_close_called](auto ec){
+            on_close_called = true;
+        }
+    };
+
+    auto OnConnect{
+        [&on_connect_called, clientPtr, &OnClose](auto ec)
+        {
+            on_connect_called = true;
+            clientPtr->Close(OnClose);
+        }
+    };
+    clientPtr->Connect(OnConnect);
+    ioc.run();
+    ASSERT_TRUE(on_connect_called);
+}
 
 TEST(WebSocketClientTestSuite, TestBasicWebsocketConnection) {
     
@@ -168,7 +319,7 @@ TEST(WebSocketClientTestSuite, TestBasicWebsocketConnection) {
     bool disconnected {false};
 
     // Our own callbacks
-    auto onSend {[&messageSent](auto ec) {
+    auto onSend {[&messageSent](auto ec, std::size_t byte_transferred) {
         messageSent = !ec;
     }};
     auto onConnect {[&client_ptr, &connected, &onSend, &message](auto ec) {
@@ -238,7 +389,7 @@ TEST(WebSocketClientTestSuite, TestStompNetworkEvents){
         return ok;
     };
 
-    auto onSend{[](auto ec)
+    auto onSend{[](auto ec, std::size_t byte_transferred)
                 {
                     ASSERT_TRUE(!ec);
                 }};

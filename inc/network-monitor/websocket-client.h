@@ -19,7 +19,7 @@ namespace NetworkMonitor{
         std::function<void (boost::system::error_code)> onConnect;
         std::function<void (boost::system::error_code, std::string&&)> onMessage;
         std::function<void (boost::system::error_code)> onDisconnect;
-        std::function<void (boost::system::error_code)> onSend;
+        std::function<void (boost::system::error_code, std::size_t)> onSend;
         std::function<void (boost::system::error_code)> onClose;
     } RegisteredCallbacks;
 
@@ -94,7 +94,7 @@ namespace NetworkMonitor{
                                         this->is_connected_ = false;
                                         return;
                                    }
-                                    logger::error("OnConnect - Successfully TLS handhsake");
+                                    logger::info("OnConnect - Successfully TLS handhsake");
                                     websocket_.async_handshake(url_, endpoint_, beast::bind_front_handler(&NetworkMonitor::WebSocketClient<Resolver, WebSocketStream>::OnHandshake, this->shared_from_this())); });
             }
 
@@ -128,14 +128,14 @@ namespace NetworkMonitor{
                     logger::error("OnWritecomplete - Failed to write with Error Code: {}", ec.message());
                     if (this->callbacks_.onSend)
                     {
-                        callbacks_.onSend(ec);
+                        callbacks_.onSend(ec, 0);
                     }
                     return;
                 }
                 logger::info("OnWritecomplete - Successfully sent message of {} bytes", bytes_transferred);
                 if (this->callbacks_.onSend)
                 {
-                    callbacks_.onSend(ec);
+                    callbacks_.onSend(ec, bytes_transferred);
                 }
             }
 
@@ -266,14 +266,20 @@ namespace NetworkMonitor{
              */
             void Send(
                 const std::string& message,
-                std::function<void (boost::system::error_code)> onSend = nullptr
+                std::function<void (boost::system::error_code, std::size_t)> onSend = nullptr
             ){
+                if (onSend){
+                    callbacks_.onSend = onSend;
+                }
                 if (!this->is_connected_)
                 {
                     logger::error("Connection is not yet established !!! Please start connect or retry later");
+                    if (callbacks_.onSend){
+                        callbacks_.onSend(boost::asio::error::not_connected, 0);
+                    }
                     return;
                 }
-                callbacks_.onSend = onSend;
+                
                 websocket_.async_write(net::buffer(message),
                                        beast::bind_front_handler(&NetworkMonitor::WebSocketClient<Resolver, WebSocketStream>::OnWriteComplete,
                                                                  this->shared_from_this()));
@@ -286,7 +292,15 @@ namespace NetworkMonitor{
                 std::function<void (boost::system::error_code)> onClose = nullptr
             ){
                 logger::info("Close - start closing socket");
-                callbacks_.onClose = onClose;
+                if (onClose){
+                    callbacks_.onClose = onClose;
+                }
+                if (!this->is_connected_){
+                    logger::warn("Socket is not connected or already closed !!!");
+                    if (callbacks_.onClose){
+                        callbacks_.onClose(boost::asio::error::operation_aborted);
+                    }
+                }
                 websocket_.async_close(
                     beast::websocket::close_code::normal,
                     beast::bind_front_handler(&NetworkMonitor::WebSocketClient<Resolver, WebSocketStream>::OnClose, this->shared_from_this()));
