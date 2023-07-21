@@ -17,6 +17,7 @@ include_directories("${nlohmann_json_INCLUDE_DIRS}")
 
 set(SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/file-downloader.cpp"
 			"${CMAKE_CURRENT_SOURCE_DIR}/transport-network.cpp"
+			"${CMAKE_CURRENT_SOURCE_DIR}/stomp-frame.cpp"
 )
 
 add_library(network-monitor ${SOURCES})
