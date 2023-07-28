@@ -50,12 +50,22 @@ namespace NetworkMonitor {
 
     enum class StompError {
         kOk = 0,
+        kInvalid,
         kInvalidFormat,
         kInvalidHeaderFormat,
         kInvalidCommand,
         kInvalidEmptyValueHeader,
         kInvalidEmptyKeyHeader,
-        kInvalidHeaderKey
+        kInvalidContentLengthValueType,
+        kInvalidHeaderKey,
+        kJunkAfterBodyError,
+        kConentLengthMistMatchError,
+        kParsingMissingEolAfterCommand,
+        kParsingMissingEolAfterHeaderValue,
+        kParsingMissingBlankLineAfterHeaders,
+        kParsingMissingNullAtTheEndOfBody,
+        kParsingExtraJunkFoundAfterNullInBody,
+        kMissingHeaderValue
     };
     
 
@@ -68,10 +78,12 @@ namespace NetworkMonitor {
         std::ostream& os,
         const StompHeader& command
     );
-
-    std::string ToString(const StompCommand& command);
     
-    StompCommand ToCommand(const std::string_view command);
+    std::ostream& operator<<(
+        std::ostream& os,
+        const StompError& error
+    );
+    
 
 
     /* \brief STOMP Frame version 1.20 representation  
@@ -94,11 +106,16 @@ namespace NetworkMonitor {
             /*! \brief Copy constructor
              */
             StompFrame(const StompFrame& other);
-
+            
+            
+            /*! \brief Move constructor
+            */
+            StompFrame(StompFrame&& other);
 
             /*! \brief Move constructor
              */
-            StompFrame(StompFrame&& other);
+            StompFrame(StompError &ec, std::string&& other);
+
 
             /*! \brief Copy assignment operator.
              */
@@ -110,10 +127,23 @@ namespace NetworkMonitor {
 
             std::string_view GetFrameBody(void) {return std::string_view(this->body_);}
 
+            using HeadersMap = std::unordered_map<StompHeader, std::string_view>; 
+
+            StompCommand GetCommand() const;
+
+            const std::string_view& GetHeaderValue(const StompHeader& header) const;
+
+            const std::string_view& GetBody(); 
+
+
+
         private:
-            StompCommand command_;
-            std::unordered_map<StompHeader, std::string> headers_;
-            std::string body_;
+            std::string plain_ {};
+            StompCommand command_ {StompCommand::kInvalid};
+            HeadersMap headers_ {};
+            std::string_view body_ {};
+            StompError ParseRawStompFrame(const std::string_view frame);
+            StompError ValidateFrame();
     };
 };
 
