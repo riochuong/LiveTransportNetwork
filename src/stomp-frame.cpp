@@ -84,6 +84,11 @@ static const auto gStompErrorStrings {
             {StompError::kMissingHeaderValue,              "Missing Header Vlaue" },
             {StompError::kParsingMissingNullAtTheEndOfBody,      "Missing NULL At The End of Body" },
             {StompError::kParsingExtraJunkFoundAfterNullInBody,  "Extra Junk Found After Null in Body" },
+
+            {StompError::kValidationInvalidCommand,           "Invalid Command not part STOMP protocol"}, 
+            {StompError::kValidationMissingRequiredHeaders,    "Missing Required Headers for Command"}, 
+            {StompError::kValidationInvalidContentLenValue,    "Content Length Value is not a valid number"}, 
+            {StompError::kValidationContentLenMisMatch,    "Content lenth value from header does not match body size"}, 
             {StompError::kInvalid,                         "Invalid"}
         }
     )
@@ -132,6 +137,15 @@ static const StompCommand ToCommand(const std::string_view command){
     return it->second;
 }
 
+static const std::string_view ToErrorStrings(const StompError ec){
+    auto it = gStompErrorStrings.left.find(ec);
+    if (it == gStompErrorStrings.left.end()){
+        return gStompErrorStrings.left.find(StompError::kInvalid)->second;
+    }
+    return it->second;
+}
+
+
 static const StompHeader ToHeader(const std::string_view header){
     auto it = gStompHeaderStrings.right.find(header);
     if (it == gStompHeaderStrings.right.end()){
@@ -145,22 +159,27 @@ static const StompHeader ToHeader(const std::string_view header){
 StompFrame::StompFrame(StompError& ec, const std::string& frame){
     this->plain_ = frame;
     ec = ParseRawStompFrame(this->plain_);
-    if (ec != StompError::kOk){
-        logger::error("Invalid Stomp Frame");
-        this->plain_ = {};
-        this->headers_.clear();
-        this->body_ = {};
+    if ((ec != StompError::kOk)){
+        logger::error("Invalid Stomp Frame {}", ToErrorStrings(ec));
+        return;
     }
+    ec = ValidateFrame();
+    if ((ec != StompError::kOk)){
+        logger::error("Stomp Frame Failed Validation {}", ToErrorStrings(ec));
+    }
+    
 }
 
 StompFrame::StompFrame(StompError& ec, std::string&& frame){
     this->plain_ = std::move(frame);
     ec = ParseRawStompFrame(this->plain_);
-    if (ec != StompError::kOk){
-        logger::error("Invalid Stomp Frame");
-        this->plain_ = {};
-        this->headers_.clear();
-        this->body_ = {};
+    if ((ec != StompError::kOk)){
+        logger::error("Invalid Stomp Frame {}", ToErrorStrings(ec));
+        return;
+    }
+    ec = ValidateFrame();
+    if ((ec != StompError::kOk)){
+        logger::error("Stomp Frame Failed Validation {}", ToErrorStrings(ec));
     }
 }
 
@@ -312,4 +331,64 @@ const std::string_view &StompFrame::GetHeaderValue(const StompHeader &header) co
 const std::string_view &StompFrame::GetBody()
 {
     return body_;
+}
+
+StompError StompFrame::ValidateFrame() {
+
+    bool hasAllHeaders = true;
+    switch(command_) {
+
+        case StompCommand::kConnect:
+            hasAllHeaders &= HasHeader(StompHeader::kHost);
+            hasAllHeaders &= HasHeader(StompHeader::kAcceptVersion);
+            break;
+        case StompCommand::kSubscribe: 
+        case StompCommand::kSend:
+            hasAllHeaders &= HasHeader(StompHeader::kDestination);
+            break;
+        case StompCommand::kAck:
+        case StompCommand::kNack:
+        case StompCommand::kUnsubscribe:
+            hasAllHeaders &= HasHeader(StompHeader::kId);
+            break;
+        case StompCommand::kAbort:
+        case StompCommand::kCommit:
+            hasAllHeaders &= HasHeader(StompHeader::kTransaction);
+            break;
+        case StompCommand::kDisconnect:
+            break;
+        case StompCommand::kMessage:
+            hasAllHeaders &= HasHeader(StompHeader::kDestination);
+            hasAllHeaders &= HasHeader(StompHeader::kMessageId);
+            hasAllHeaders &= HasHeader(StompHeader::kSubscription);
+            break;
+        case StompCommand::kReceipt:
+            hasAllHeaders &= HasHeader(StompHeader::kReceiptId);
+            break;
+        case StompCommand::kError:
+            break;
+        case StompCommand::kInvalid:
+            break;
+        default:
+            return StompError::kValidationInvalidCommand;        
+    }
+
+    if (!hasAllHeaders){
+        return StompError::kValidationMissingRequiredHeaders;
+    }
+
+    // check for cotent lenght matching
+    if (HasHeader(StompHeader::kContentLength)){
+        size_t contentLen = 0;
+        bool validNumber {
+            StringViewToI(headers_.at(StompHeader::kContentLength), contentLen)
+        };
+        if (!validNumber){
+            return StompError::kValidationInvalidContentLenValue;
+        }
+        if (contentLen != body_.size()){
+            return StompError::kValidationContentLenMisMatch;
+        }
+    }
+    return StompError::kOk;
 }

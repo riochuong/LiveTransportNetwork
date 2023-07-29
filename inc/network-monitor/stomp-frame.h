@@ -65,7 +65,13 @@ namespace NetworkMonitor {
         kParsingMissingBlankLineAfterHeaders,
         kParsingMissingNullAtTheEndOfBody,
         kParsingExtraJunkFoundAfterNullInBody,
-        kMissingHeaderValue
+        kMissingHeaderValue,
+        
+        // Validation error 
+        kValidationInvalidCommand,
+        kValidationMissingRequiredHeaders,
+        kValidationInvalidContentLenValue,
+        kValidationContentLenMisMatch
     };
     
 
@@ -135,6 +141,9 @@ namespace NetworkMonitor {
 
             const std::string_view& GetBody(); 
 
+            const bool HasHeader(const StompHeader &header) const{
+                 return headers_.find(header) != headers_.end();
+            }
 
 
         private:

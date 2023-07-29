@@ -25,7 +25,7 @@ TEST(TestStompFrameParsing, TestParseWellFormed){
 TEST(TestStompFrameParsing, TestParseEmptyHeaders){
 
     std::string frame {
-        "CONNECT\n"
+        "DISCONNECT\n"
         "\n"
         "Frame body\0"s
     };
@@ -145,5 +145,173 @@ TEST(TestStompFrameParsing, TestParseInvalidHeaderKey){
     StompError ec;
     StompFrame(ec, frame);
     ASSERT_TRUE(ec == StompError::kInvalidHeaderKey);
+}
+
+TEST(TestStompFrameParsing, TestParseNewLineAfterBodyContentLength){
+
+    std::string frame =
+        "CONNECT\n"
+        "accept-version:42\n"
+        "host:host.com\n"
+        "\n"
+        "Frame body\0\n\n\n"s;
+
+    StompError ec;
+    StompFrame(ec, frame);
+    ASSERT_TRUE(ec == StompError::kParsingExtraJunkFoundAfterNullInBody);
+}
+
+TEST(TestStompFrameParsing, TestRequiredHeaders){
+
+    {
+        std::string frame =
+            "CONNECT\n"
+            "host:host.com\n" // missing accept version
+            "\n"
+            "Frame body\0"s;
+
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kValidationMissingRequiredHeaders);
+    }
+
+    {
+        std::string frame =
+            "CONNECT\n"
+            "accept-version:42\n" // missing host
+            "\n"
+            "Frame body\0"s;
+
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kValidationMissingRequiredHeaders);
+    }
+
+   {
+        std::string frame =
+            "SEND\n"
+            "host:host.com\n" // missing destination
+            "\n"
+            "\0"s;
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kValidationMissingRequiredHeaders);
+    }
+   
+    {
+        std::string frame =
+            "SEND\n"
+            "destination:host.com\n" // missing destination
+            "\n"
+            "\0"s;
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kOk);
+    }
+   
+   {
+        std::string frame =
+            "ACK\n"
+            "id:123\n" 
+            "\n"
+            "\0"s;
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kOk);
+    }
+   
+    {
+        std::string frame =
+            "ACK\n" // missing id
+            "\n"
+            "abc\0"s;
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kValidationMissingRequiredHeaders);
+    }
+  
+    {
+        std::string frame =
+            "ACK\n" // missing id
+            "id:123\n"
+            "\n"
+            "abc\0"s;
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kOk);
+    }
+
+   {
+        std::string frame =
+            "COMMIT\n" // missing id
+            "transaction:123\n"
+            "\n"
+            "abc\0"s;
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kOk);
+    }
+   
+    {
+        std::string frame =
+            "COMMIT\n" // missing id
+            "\n"
+            "\0"s;
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kValidationMissingRequiredHeaders);
+    }
+
+    {
+        std::string frame =
+            "MESSAGE\n" // missing id
+            "\n"
+            "\0"s;
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kValidationMissingRequiredHeaders);
+    }
+
+   {
+        std::string frame =
+            "MESSAGE\n" // missing id
+            "destination:host.com\n"
+            "\n"
+            "\0"s;
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kValidationMissingRequiredHeaders);
+    }
+
+   {
+        std::string frame =
+            "MESSAGE\n" // missing id
+            "destination:host.com\n"
+            "message-id:123\n"
+            "\n"
+            "\0"s;
+        StompError ec;
+        StompFrame(ec, frame);
+        ASSERT_TRUE(ec == StompError::kValidationMissingRequiredHeaders);
+    }
+
+   {
+        std::string frame =
+            "MESSAGE\n" // missing id
+            "destination:host.com\n"
+            "message-id:123\n"
+            "subscription:456\n"
+            "\n"
+            "\0"s;
+        StompError ec;
+        StompFrame sframe {ec, frame};
+        ASSERT_TRUE(ec == StompError::kOk);
+        ASSERT_TRUE(
+            sframe.GetHeaderValue(StompHeader::kDestination) == "host.com" &&
+            sframe.GetHeaderValue(StompHeader::kMessageId) == "123" &&
+            sframe.GetHeaderValue(StompHeader::kSubscription) == "456"
+        );
+    }
+
 }
 
